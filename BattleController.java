@@ -4,23 +4,39 @@ package BattleShip;
 import java.awt.Color;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.Random;
+import java.io.IOException;
 import javax.swing.*;
 import BattleShip.BattleModel;
 import BattleShip.BattleView;
 import BattleShip.ShipType;
-import BattleShip.Player;
+
 
 public class BattleController {
-
+	/**
+	 * BattleView
+	 */
 	private BattleView theView;
+	/**
+	 * BattleModel
+	 */
 	private BattleModel theModel;
-		
+	/**
+	 * UpdateMonitor
+	 */
+	private UpdateMonitor theMonitor;
+	
+	/**
+	 * @param theView
+	 * 				set theView
+	 * @param theModel
+	 * 				set theModel
+	 */
 	public BattleController(BattleView theView,BattleModel theModel){
 		
 		this.theView=theView;
 		this.theModel=theModel;
-		this.theView.addPlayerVSPlayerListener(new PlayerVSPlayerListener());
+		this.theView.addServerListener(new ServerListener());
+		this.theView.addClientListener(new ClientListener());
 		this.theView.addExitListener(new ExitListener());
 		this.theView.addShip4Listener(new Ship4Player1Listener());
 		this.theView.addShip3Listener(new Ship3Player1Listener());
@@ -29,20 +45,49 @@ public class BattleController {
 		this.theView.addDeployPlayer1Listener(new DeployPlayer1Listener());
 		
 	}
-
-	class PlayerVSPlayerListener implements ActionListener{
+	/**
+	 * Creating server after use this button
+	 * Adding setShipsPanel and gridPlayer1Panel after use this button
+	 */
+	class ServerListener implements ActionListener{
 		public void actionPerformed(ActionEvent arg0) {
-			
+			theModel.createStartingServer();
 			theView.frame.remove(theView.menuPanel);
+			theView.setGridPlayer1Panel();
 			theView.frame.add(theView.setShipsPanel);
 			theView.frame.add(theView.gridPlayer1Panel);
 			theView.addPlaceButtonPlayer1Listener(new PlaceButtonPlayer1Listener());
-			theView.frame.setTitle("Setting ships");
+			theView.frame.setTitle("Setting ships Server");
+			theView.frame.revalidate();
+			theView.frame.repaint();
+		}
+	}
+	/**
+	 * Creating client after use this button
+	 * Adding setShipsPanelPlayer2 and gridPlayer2Panel after use this button
+	 */
+	class ClientListener implements ActionListener{
+		public void actionPerformed(ActionEvent arg0) {
+			theModel.createStartingClient();
+			theView.frame.remove(theView.menuPanel);
+			theView.setGridPlayer2Panel();
+			theView.addShip4Listener(new Ship4Player2Listener());
+			theView.addShip3Listener(new Ship3Player2Listener());
+			theView.addShip2Listener(new Ship2Player2Listener());
+			theView.addShip1Listener(new Ship1Player2Listener());
+			theView.addDeployPlayer2Listener(new DeployPlayer2Listener());
+			theView.frame.add(theView.getShipsPanelPlayer2());
+			theView.frame.add(theView.gridPlayer2Panel);
+			theView.addPlaceButtonPlayer2Listener(new PlaceButtonPlayer2Listener());
+			theView.frame.setTitle("Setting ships Client");
 			theView.frame.revalidate();
 			theView.frame.repaint();
 		}
 	}
 	
+	/**
+	 * exit from the program
+	 */
 	class ExitListener implements ActionListener{
 		public void actionPerformed(ActionEvent arg0) {
 			
@@ -50,37 +95,238 @@ public class BattleController {
 			
 		}
 	}
-	
-	public void gameOver() {
-		Player[] players = theModel.getPlayers();
-		int winner = theModel.winner();
-
-		for (int y=0; y < 10; y++) {
-			for (int x = 0; x < 10; x++) {
-				if(winner==0){
-					if (players[winner].getHits(x, y) == true && theView.getGridPlayer1(x, y).getBackground() != Color.RED) {
-						theView.getGridPlayer1(x, y).setBackground(Color.BLUE);
+	/**
+	 * Class that control sides between two players
+	 */
+	class UpdateMonitor implements Runnable{
+		
+		/**
+		 * If side==true - it is your turn
+		 */
+		private volatile boolean side = false;
+		/**
+		 * To stop thread
+		 */
+		private volatile boolean shutdown = false;
+		/**
+		 * @param tmp
+		 * 			set side
+		 */
+		public UpdateMonitor(boolean tmp){
+			
+			side = tmp;
+			try {
+				start();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}	
+		}
+		/**
+		 * Function which check side and if enemy player has made a move change colors of GridPlayerShips
+		 * Also this function check if this game is over
+		 */
+		public void run() {
+			while(!shutdown){
+				if(side == false){//server
+					if(theModel.getPlayers()[0].getUpdateBoard() == true){
+						if(theModel.getPlayers()[0].getIsGameOver() == true && theModel.getPlayers()[1].getIsGameOver()){
+							gameOver(0);
+						}
+						if(theModel.getPlayers()[0].getIsFired() == true){
+							theView.getGridPlayer1Ships(theModel.getPlayers()[0].getShipX(), theModel.getPlayers()[0].getShipY()).setBackground(Color.RED);
+							for(int y=0; y<(Math.abs(theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getVertStart()-theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getVertEnd())+3);y++)
+								for(int x=0; x<(Math.abs(theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getHorzStart()-theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getHorzEnd())+3);x++){
+									try{
+										
+										if(theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getVertStart()==theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getVertEnd()){
+											if(theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getHorzStart()<theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getHorzEnd()){
+												
+												if(!(theView.getGridPlayer1Ships((theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getHorzStart()-1+x), (theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getVertStart()-1+y)).getBackground()==Color.RED))
+													theView.getGridPlayer1Ships((theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getHorzStart()-1+x), (theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getVertStart()-1+y)).setBackground(Color.BLUE);
+											}
+											else{
+												
+												if(!(theView.getGridPlayer1Ships((theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getHorzEnd()-1+x), (theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getVertStart()-1+y)).getBackground()==Color.RED))
+													theView.getGridPlayer1Ships((theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getHorzEnd()-1+x), (theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getVertStart()-1+y)).setBackground(Color.BLUE);
+											}
+										}
+										else{
+											if(theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getVertStart()<theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getVertEnd()){
+												
+												if(!(theView.getGridPlayer1Ships((theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getHorzStart()-1+x), (theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getVertStart()-1+y)).getBackground()==Color.RED))
+													theView.getGridPlayer1Ships((theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getHorzStart()-1+x), (theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getVertStart()-1+y)).setBackground(Color.BLUE);
+											}
+											else{
+												
+												if(!(theView.getGridPlayer1Ships((theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getHorzEnd()-1+x), (theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getVertEnd()-1+y)).getBackground()==Color.RED))
+													theView.getGridPlayer1Ships((theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getHorzEnd()-1+x), (theModel.getPlayers()[0].getPlayerShips(theModel.getPlayers()[0].getIndexOfShip()).getVertEnd()-1+y)).setBackground(Color.BLUE);
+											}
+										}
+										
+									}
+									catch(ArrayIndexOutOfBoundsException eObj){
+										
+									}
+								}
+							theModel.getPlayers()[0].setIsFired(false);
+							theModel.getPlayers()[0].setUpdateBoard(false);						
+						}
+						else{
+							
+							if(theView.getGridPlayer1Ships(theModel.getPlayers()[0].getShipX(), theModel.getPlayers()[0].getShipY()).getBackground() == Color.ORANGE){
+								theView.getGridPlayer1Ships(theModel.getPlayers()[0].getShipX(), theModel.getPlayers()[0].getShipY()).setBackground(Color.RED);
+							}
+							else{
+								theView.getGridPlayer1Ships(theModel.getPlayers()[0].getShipX(), theModel.getPlayers()[0].getShipY()).setBackground(Color.BLUE);
+							}
+							theModel.getPlayers()[0].setUpdateBoard(false);
+							
+						}
 					}
 				}
 				else{
-					if (players[winner].getHits(x, y) == true && theView.getGridPlayer2(x, y).getBackground() != Color.RED) {
-						theView.getGridPlayer2(x, y).setBackground(Color.BLUE);
+					if(theModel.getPlayers()[1].getUpdateBoard() == true){
+						if(theModel.getPlayers()[1].getIsGameOver() == true && theModel.getPlayers()[0].getIsGameOver()){
+							gameOver(1);
+						}
+						if(theModel.getPlayers()[1].getIsFired() == true){
+							theView.getGridPlayer2Ships(theModel.getPlayers()[1].getShipX(), theModel.getPlayers()[1].getShipY()).setBackground(Color.RED);
+							for(int y=0; y<(Math.abs(theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getVertStart()-theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getVertEnd())+3);y++)
+								for(int x=0; x<(Math.abs(theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getHorzStart()-theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getHorzEnd())+3);x++){
+									try{
+											
+										if(theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getVertStart()==theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getVertEnd()){
+											if(theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getHorzStart()<theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getHorzEnd()){
+												
+												if(!(theView.getGridPlayer2Ships((theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getHorzStart()-1+x), (theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getVertStart()-1+y)).getBackground()==Color.RED))
+													theView.getGridPlayer2Ships((theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getHorzStart()-1+x), (theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getVertStart()-1+y)).setBackground(Color.BLUE);
+											}
+											else{
+												
+												if(!(theView.getGridPlayer2Ships((theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getHorzEnd()-1+x), (theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getVertStart()-1+y)).getBackground()==Color.RED))
+													theView.getGridPlayer2Ships((theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getHorzEnd()-1+x), (theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getVertStart()-1+y)).setBackground(Color.BLUE);
+											}
+										}
+										else{
+											if(theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getVertStart()<theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getVertEnd()){
+												
+												if(!(theView.getGridPlayer2Ships((theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getHorzStart()-1+x), (theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getVertStart()-1+y)).getBackground()==Color.RED))
+													theView.getGridPlayer2Ships((theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getHorzStart()-1+x), (theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getVertStart()-1+y)).setBackground(Color.BLUE);
+											}
+											else{
+												
+												if(!(theView.getGridPlayer2Ships((theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getHorzEnd()-1+x), (theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getVertEnd()-1+y)).getBackground()==Color.RED))
+													theView.getGridPlayer2Ships((theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getHorzEnd()-1+x), (theModel.getPlayers()[1].getPlayerShips(theModel.getPlayers()[1].getIndexOfShip()).getVertEnd()-1+y)).setBackground(Color.BLUE);
+											}
+										}
+										
+									}
+									catch(ArrayIndexOutOfBoundsException eObj){
+										
+									}
+								}
+							theModel.getPlayers()[1].setIsFired(false);
+							theModel.getPlayers()[1].setUpdateBoard(false);
+			
+						}
+						else{
+							
+							if(theView.getGridPlayer2Ships(theModel.getPlayers()[1].getShipX(), theModel.getPlayers()[1].getShipY()).getBackground() == Color.ORANGE){
+								theView.getGridPlayer2Ships(theModel.getPlayers()[1].getShipX(), theModel.getPlayers()[1].getShipY()).setBackground(Color.RED);
+							}
+							else{
+								theView.getGridPlayer2Ships(theModel.getPlayers()[1].getShipX(), theModel.getPlayers()[1].getShipY()).setBackground(Color.BLUE);
+							}
+							theModel.getPlayers()[1].setUpdateBoard(false);
+							
+						}
 					}
 				}
 			}
 		}
-		if(winner==0){
-			JFrame frame = new JFrame();
-			JOptionPane.showMessageDialog(frame, "The game is over! You win. Good bye!");
-			System.exit(0);
+		/**
+		 * Stop run
+		 */
+		public void shutdown(){
+			
+			shutdown = true;
+			
 		}
-		else{
-			JFrame frame = new JFrame();
-			JOptionPane.showMessageDialog(frame, "The game is over! You lose. Good bye!");
-			System.exit(0);
+		/**
+		 * Creating thread
+		 * @throws IOException
+		 */
+		public void start() throws IOException{  
+			
+				Thread thread = new Thread(this);                   
+				thread.start();
+				
+		}
+
+	}
+	/**
+	 * Function which color not damaged ships if you win
+	 * Also write if you win/lose and close the game
+	 * @param tmp
+	 * 			set side - if tmp = 0 it is server
+	 * 					   if tmp = 1 it is client
+	 */
+	public void gameOver(int tmp) {
+		
+		for (int y=0; y < 10; y++) {
+			for (int x = 0; x < 10; x++) {
+				if(theModel.getPlayers()[1].getShipsLeft() == 0){
+					if (theModel.getPlayers()[0].getHits(x, y) == true && theView.getGridPlayer1(x, y).getBackground() != Color.RED) {
+						theView.getGridPlayer1(x, y).setBackground(Color.GREEN);
+					}
+				}
+				else{
+					if (theModel.getPlayers()[1].getHits(x, y) == true && theView.getGridPlayer2(x, y).getBackground() != Color.RED) {
+						theView.getGridPlayer2(x, y).setBackground(Color.GREEN);
+					}
+				}
+			}
+		}
+		if(tmp==0){//server
+			theMonitor.shutdown();
+			if(theModel.getPlayers()[0].getShipsLeft() == 0){
+				JFrame frame = new JFrame();
+				JOptionPane.showMessageDialog(frame, "The game is over! You lose. Good bye!");
+				theModel.getMainServer().shutdown();
+				theModel.getMainServer().stop();
+				System.exit(0);
+			}
+			else{
+				JFrame frame = new JFrame();
+				JOptionPane.showMessageDialog(frame, "The game is over! You win. Good bye!");
+				theModel.getMainServer().shutdown();
+				theModel.getMainServer().stop();
+				System.exit(0);			
+			}
+		}
+		else{//client
+			theMonitor.shutdown();
+			if(theModel.getPlayers()[0].getShipsLeft() == 0){
+				JFrame frame = new JFrame();
+				JOptionPane.showMessageDialog(frame, "The game is over! You win. Good bye!");
+				theModel.getMainClient().shutdown();
+				theModel.getMainClient().stop();
+				System.exit(0);
+			}
+			else{
+				JFrame frame = new JFrame();
+				JOptionPane.showMessageDialog(frame, "The game is over! You lose. Good bye!");
+				theModel.getMainClient().shutdown();
+				theModel.getMainClient().stop();
+				System.exit(0);			
+			}
 		}
 	}
-	
+	/** 
+	 * When player 1 place his ships he activate this actionlistener
+	 * This class checks if player has free ships and free ships of that type
+	 * Also class checks the validity of placing ships
+	 */
 	class PlaceButtonPlayer1Listener implements ActionListener {
 		
 		public void actionPerformed(ActionEvent e){
@@ -135,7 +381,6 @@ public class BattleController {
 					theModel.getPlayers()[0].placeShip(theModel.getPlayers()[0].getActiveShip().getSize(),theModel.getPlayers()[0].getShipX(),theModel.getPlayers()[0].getShipY(),theModel.getPlayers()[0].getShipX(),theModel.getPlayers()[0].getShipY());
 					theView.getGridPlayer1(theModel.getPlayers()[0].getShipX(), theModel.getPlayers()[0].getShipY()).setBackground(Color.ORANGE);
 					theModel.getPlayers()[0].incShipsPlaced();
-					//theModel.getPlayers()[0].getGrid(theModel.getPlayers()[0].getShipX(),theModel.getPlayers()[0].getShipY()).setBackground(Color.ORANGE);
 					if (theModel.getPlayers()[0].getShipsPlaced() >= 10) {
 						JFrame frame = new JFrame();
 						JOptionPane.showMessageDialog(frame,"All your ships have been placed.");
@@ -251,7 +496,9 @@ public class BattleController {
 			}	
 		}
 	}
-	
+	/**
+	 * When player 2 hit board
+	 */
 	class BoardButtonPlayer1Listener implements ActionListener {
 		
 		public void actionPerformed(ActionEvent e){
@@ -265,7 +512,7 @@ public class BattleController {
 						}
 					}
 				}
-				if(theModel.getPlayers()[0].getHits(i, j) && theView.getGridPlayer1(i,j).getBackground()!=Color.RED && theView.getGridPlayer1(i,j).getBackground()!=Color.GRAY){
+				if(theModel.getPlayers()[0].getHits(i, j) && theModel.getPlayers()[1].getTurn() && theView.getGridPlayer1(i,j).getBackground()!=Color.RED && theView.getGridPlayer1(i,j).getBackground()!=Color.GRAY){
 					int index;
 					theView.getGridPlayer1(i,j).setBackground(Color.RED);
 					theModel.getPlayers()[0].setActiveShip(theModel.getPlayers()[0].getShipPlacement(i, j));
@@ -275,6 +522,8 @@ public class BattleController {
 					}
 					theModel.getPlayers()[0].getPlayerShips(index).hit();
 					if(theModel.getPlayers()[0].getPlayerShips(index).wasFired()){
+						theModel.getPlayers()[0].setIndexOfShip(index);
+						theModel.getPlayers()[0].setIsFired(true);
 						for(int y=0; y<(Math.abs(theModel.getPlayers()[0].getPlayerShips(index).getVertStart()-theModel.getPlayers()[0].getPlayerShips(index).getVertEnd())+3);y++)
 							for(int x=0; x<(Math.abs(theModel.getPlayers()[0].getPlayerShips(index).getHorzStart()-theModel.getPlayers()[0].getPlayerShips(index).getHorzEnd())+3);x++){
 								try{
@@ -308,24 +557,36 @@ public class BattleController {
 								}
 							}
 						theModel.getPlayers()[0].decShipsLeft();
-						JFrame frame = new JFrame();
-						JOptionPane.showMessageDialog(frame, "The ship " + theModel.getPlayers()[0].getPlayerShips(index).getSize() + " has been sunk!");
 					}
 					if(theModel.getPlayers()[0].getShipsLeft()==0){
-						gameOver();
+						theModel.getPlayers()[0].setIsGameOver(true);
 					}
+					theModel.getPlayers()[0].setUpdateBoard(true);
+					theModel.getPlayers()[0].setShipX(i);
+					theModel.getPlayers()[0].setShipY(j);
+					theModel.setCheckTurn(false, true);
 					theModel.getPlayers()[0].setHit(i, j, false);
 				}
 				else if(theView.getGridPlayer1(i,j).getBackground()==Color.RED || theView.getGridPlayer1(i,j).getBackground()==Color.GRAY){
 					JFrame frame = new JFrame();
 					JOptionPane.showMessageDialog(frame, "You have atacked this field");
 				}
+				else if(theModel.getPlayers()[1].getTurn()==false){
+					JFrame frame = new JFrame();
+					JOptionPane.showMessageDialog(frame, "It is not your turn");		
+				}
 				else{
+					theModel.getPlayers()[0].setUpdateBoard(true);
+					theModel.getPlayers()[0].setShipX(i);
+					theModel.getPlayers()[0].setShipY(j);
+					theModel.setCheckTurn(true, false);
 					theView.getGridPlayer1(i,j).setBackground(Color.GRAY);
 				}
 		}	
 	}	
-	
+	/**
+	 * When player 1 hit board
+	 */
 	class BoardButtonPlayer2Listener implements ActionListener {
 		
 		public void actionPerformed(ActionEvent e){
@@ -349,6 +610,8 @@ public class BattleController {
 					}
 					theModel.getPlayers()[1].getPlayerShips(index).hit();
 					if(theModel.getPlayers()[1].getPlayerShips(index).wasFired()){
+						theModel.getPlayers()[1].setIndexOfShip(index);
+						theModel.getPlayers()[1].setIsFired(true);
 						for(int y=0; y<(Math.abs(theModel.getPlayers()[1].getPlayerShips(index).getVertStart()-theModel.getPlayers()[1].getPlayerShips(index).getVertEnd())+3);y++)
 							for(int x=0; x<(Math.abs(theModel.getPlayers()[1].getPlayerShips(index).getHorzStart()-theModel.getPlayers()[1].getPlayerShips(index).getHorzEnd())+3);x++){
 								try{
@@ -382,12 +645,14 @@ public class BattleController {
 								}
 							}
 						theModel.getPlayers()[1].decShipsLeft();
-						JFrame frame = new JFrame();
-						JOptionPane.showMessageDialog(frame, "The ship " + theModel.getPlayers()[1].getPlayerShips(index).getSize() + " has been sunk!");
 					}
 					if(theModel.getPlayers()[1].getShipsLeft()==0){
-						gameOver();
+						theModel.getPlayers()[1].setIsGameOver(true);
 					}
+					theModel.getPlayers()[1].setUpdateBoard(true);
+					theModel.getPlayers()[1].setShipX(i);
+					theModel.getPlayers()[1].setShipY(j);
+					theModel.setCheckTurn(true, false);
 					theModel.getPlayers()[1].setHit(i, j, false);
 				}
 				else if(theView.getGridPlayer2(i,j).getBackground()==Color.RED || theView.getGridPlayer2(i,j).getBackground()==Color.GRAY){
@@ -399,72 +664,19 @@ public class BattleController {
 					JOptionPane.showMessageDialog(frame, "It is not your turn");		
 				}
 				else{
+					theModel.getPlayers()[1].setUpdateBoard(true);
+					theModel.getPlayers()[1].setShipX(i);
+					theModel.getPlayers()[1].setShipY(j);
 					theModel.setCheckTurn(false, true);
 					theView.getGridPlayer2(i,j).setBackground(Color.GRAY);
 				}
-				
-				while(theModel.getPlayers()[1].getTurn()){
-					int index;
-					Random rand = new Random();
-					int x = rand.nextInt(9) + 0;
-					Random rand1 = new Random();
-					int y = rand1.nextInt(9) + 0;
-					if(theModel.getPlayers()[0].getHits(x, y)){
-						theView.getPlayer1Ships(x, y).setBackground(Color.RED);
-						theModel.getPlayers()[0].setActiveShip(theModel.getPlayers()[0].getShipPlacement(x, y));
-						for(index=0;index<10;index++){
-							if((theModel.getPlayers()[0].getActiveShip().getSize()==theModel.getPlayers()[0].getPlayerShips(index).getSize()) && (theModel.getPlayers()[0].getActiveShip().getVertStart()==theModel.getPlayers()[0].getPlayerShips(index).getVertStart()) && (theModel.getPlayers()[0].getActiveShip().getHorzStart()==theModel.getPlayers()[0].getPlayerShips(index).getHorzStart()))
-								break;
-						}
-						theModel.getPlayers()[0].getPlayerShips(index).hit();
-						if(theModel.getPlayers()[0].getPlayerShips(index).wasFired()){
-							for(int k=0; k<(Math.abs(theModel.getPlayers()[0].getPlayerShips(index).getVertStart()-theModel.getPlayers()[0].getPlayerShips(index).getVertEnd())+3);k++)
-								for(int l=0; l<(Math.abs(theModel.getPlayers()[0].getPlayerShips(index).getHorzStart()-theModel.getPlayers()[0].getPlayerShips(index).getHorzEnd())+3);l++){
-									try{
-										if(theModel.getPlayers()[0].getPlayerShips(index).getVertStart()==theModel.getPlayers()[0].getPlayerShips(index).getVertEnd()){
-											if(theModel.getPlayers()[0].getPlayerShips(index).getHorzStart()<theModel.getPlayers()[0].getPlayerShips(index).getHorzEnd()){
-												if(!(theView.getPlayer1Ships((theModel.getPlayers()[0].getPlayerShips(index).getHorzStart()-1+l), (theModel.getPlayers()[0].getPlayerShips(index).getVertStart()-1+k)).getBackground()==Color.RED))
-													theView.getPlayer1Ships((theModel.getPlayers()[0].getPlayerShips(index).getHorzStart()-1+l), (theModel.getPlayers()[0].getPlayerShips(index).getVertStart()-1+k)).setBackground(Color.GREEN);
-											}
-											else{
-												if(!(theView.getPlayer1Ships((theModel.getPlayers()[0].getPlayerShips(index).getHorzEnd()-1+l), (theModel.getPlayers()[0].getPlayerShips(index).getVertStart()-1+k)).getBackground()==Color.RED))
-													theView.getPlayer1Ships((theModel.getPlayers()[0].getPlayerShips(index).getHorzEnd()-1+l), (theModel.getPlayers()[0].getPlayerShips(index).getVertStart()-1+k)).setBackground(Color.GREEN);
-											}
-										}
-										else{
-											if(theModel.getPlayers()[0].getPlayerShips(index).getVertStart()<theModel.getPlayers()[0].getPlayerShips(index).getVertEnd()){
-												if(!(theView.getPlayer1Ships((theModel.getPlayers()[0].getPlayerShips(index).getHorzStart()-1+l), (theModel.getPlayers()[0].getPlayerShips(index).getVertStart()-1+k)).getBackground()==Color.RED))
-													theView.getPlayer1Ships((theModel.getPlayers()[0].getPlayerShips(index).getHorzStart()-1+l), (theModel.getPlayers()[0].getPlayerShips(index).getVertStart()-1+k)).setBackground(Color.GREEN);
-											}
-											else{
-												if(!(theView.getPlayer1Ships((theModel.getPlayers()[0].getPlayerShips(index).getHorzEnd()-1+l), (theModel.getPlayers()[0].getPlayerShips(index).getVertEnd()-1+k)).getBackground()==Color.RED))
-													theView.getPlayer1Ships((theModel.getPlayers()[0].getPlayerShips(index).getHorzEnd()-1+l), (theModel.getPlayers()[0].getPlayerShips(index).getVertEnd()-1+k)).setBackground(Color.GREEN);
-											}
-										}
-									}
-									catch(ArrayIndexOutOfBoundsException eObj){
-										
-									}
-								}
-							theModel.getPlayers()[0].decShipsLeft();
-						}
-						if(theModel.getPlayers()[0].getShipsLeft()==0){
-							gameOver();
-						}
-						theModel.getPlayers()[0].setHit(x, y, false);
-					}
-					else if(theView.getPlayer1Ships(x,y).getBackground()==Color.RED || theView.getPlayer1Ships(x,y).getBackground()==Color.GREEN){
-					}
-					else{
-						theView.getPlayer1Ships(x, y).setBackground(Color.GREEN);
-						theModel.setCheckTurn(true, false);
-					}
-				}
-				
-				
 		}	
 	}	
-	
+	/** 
+	 * When player 2 place his ships he activate this actionlistener
+	 * This class checks if player has free ships and free ships of that type
+	 * Also class checks the validity of placing ships
+	 */
 	class PlaceButtonPlayer2Listener implements ActionListener {
 		
 		public void actionPerformed(ActionEvent e){
@@ -634,7 +846,9 @@ public class BattleController {
 			}	
 		}
 	}
-
+	/**
+	 * Set ship4 as active ship of first player
+	 */
 	private class Ship4Player1Listener implements ActionListener{
 		
 		public void actionPerformed(ActionEvent e){
@@ -644,7 +858,9 @@ public class BattleController {
 		}
 		
 	}
-	
+	/**
+	 * Set ship3 as active ship of first player
+	 */
 	private class Ship3Player1Listener implements ActionListener{
 		
 		public void actionPerformed(ActionEvent e){
@@ -655,7 +871,9 @@ public class BattleController {
 		}
 		
 	}
-	
+	/**
+	 * Set ship2 as active ship of first player
+	 */
 	private class Ship2Player1Listener implements ActionListener{
 		
 		public void actionPerformed(ActionEvent e){
@@ -666,7 +884,9 @@ public class BattleController {
 		}
 		
 	}
-
+	/**
+	 * Set ship1 as active ship of first player
+	 */
 	private class Ship1Player1Listener implements ActionListener{
 	
 		public void actionPerformed(ActionEvent e){
@@ -677,7 +897,9 @@ public class BattleController {
 		}
 	
 	}
-	
+	/**
+	 * Set ship4 as active ship of second player
+	 */
 	private class Ship4Player2Listener implements ActionListener{
 		
 		public void actionPerformed(ActionEvent e){
@@ -688,7 +910,9 @@ public class BattleController {
 		}
 		
 	}
-	
+	/**
+	 * Set ship3 as active ship of second player
+	 */
 	private class Ship3Player2Listener implements ActionListener{
 		
 		public void actionPerformed(ActionEvent e){
@@ -699,7 +923,9 @@ public class BattleController {
 		}
 		
 	}
-	
+	/**
+	 * Set ship2 as active ship of second player
+	 */
 	private class Ship2Player2Listener implements ActionListener{
 		
 		public void actionPerformed(ActionEvent e){
@@ -710,7 +936,9 @@ public class BattleController {
 		}
 		
 	}
-
+	/**
+	 * Set ship1 as active ship of second player
+	 */
 	private class Ship1Player2Listener implements ActionListener{
 	
 		public void actionPerformed(ActionEvent e){
@@ -721,44 +949,21 @@ public class BattleController {
 		}
 	
 	}
-	
+	/**
+	 * if all ships have been placed:
+	 * Closing startingserver and starting mainserver and updatemonitor
+	 * Adding GameBoardPlayer2Panel and Player1ShipsPanel
+	 */
 	private class DeployPlayer1Listener implements ActionListener{
 		
 		public void actionPerformed(ActionEvent e){
-			if(theModel.getPlayers()[0].getShipsPlaced()==10)
+			if(theModel.getPlayers()[0].getShipsPlaced()==10 && theModel.getPlayers()[1].getShipsPlaced()==10)
 			{
+				theModel.getStartingServer().shutdown();
+				theModel.getStartingServer().stop();
+				theModel.setCheckTurn(true, false);
+				theModel.createMainServer();
 				theModel.getPlayers()[0].setHits();
-				theView.setGridPlayer2Panel();
-				theView.frame.remove(theView.setShipsPanel);
-				theView.frame.remove(theView.getGridPlayer1Panel());
-				theView.addShip4Listener(new Ship4Player2Listener());
-				theView.addShip3Listener(new Ship3Player2Listener());
-				theView.addShip2Listener(new Ship2Player2Listener());
-				theView.addShip1Listener(new Ship1Player2Listener());
-				theView.addDeployPlayer2Listener(new DeployPlayer2Listener());
-				theView.frame.add(theView.getShipsPanelPlayer2());
-				theView.frame.add(theView.gridPlayer2Panel);
-				theView.addPlaceButtonPlayer2Listener(new PlaceButtonPlayer2Listener());
-				theView.frame.setTitle("Setting ships");
-				theView.frame.revalidate();
-				theView.frame.repaint();
-			}
-			else{
-				
-				JFrame frame = new JFrame();
-				JOptionPane.showMessageDialog(frame, "You have free ships!");
-				
-			}
-			
-		}
-		
-	}
-		
-	private class DeployPlayer2Listener implements ActionListener{
-		
-		public void actionPerformed(ActionEvent e){
-			if(theModel.getPlayers()[1].getShipsPlaced()==10)
-			{
 				theModel.getPlayers()[1].setHits();
 				theView.setGameBoardPlayer2Panel();
 				theView.addBoardButtonPlayer2Listener(new BoardButtonPlayer2Listener());
@@ -770,16 +975,72 @@ public class BattleController {
 						else
 							theView.getGridPlayer1Ships(x, y).setBackground(Color.GRAY);
 					}
-				theView.frame.remove(theView.getGridPlayer2Panel());
-				theView.frame.remove(theView.setShipsPanelPlayer2);
+				theView.frame.remove(theView.setShipsPanel);
+				theView.frame.remove(theView.getGridPlayer1Panel());
 				theView.frame.add(theView.getGameBoardPlayer2Panel());
 				theView.frame.add(theView.getPlayer1ShipsPanel());
-				theModel.setCheckTurn(true,false);
-				theView.frame.setTitle("Battleship");
+				theView.frame.setTitle("Battleship Server");
+				theMonitor = new UpdateMonitor(false);
+				theView.frame.revalidate();
+				theView.frame.repaint();
+			}
+			else if(theModel.getPlayers()[1].getShipsPlaced()!=10 && theModel.getPlayers()[0].getShipsPlaced()==10){
+				
+				JFrame frame = new JFrame();
+				JOptionPane.showMessageDialog(frame, "Wait for your opponent!");
+				
+			}
+			else{
+				
+				JFrame frame = new JFrame();
+				JOptionPane.showMessageDialog(frame, "You have free ships!");
+				
+			}
+			
+		}
+		
+	}
+	/**
+	 * if all ships have been placed:
+	 * Closing startingclient and starting mainclient and updatemonitor
+	 * Adding GameBoardPlayer1Panel and Player2ShipsPanel
+	 */	
+	private class DeployPlayer2Listener implements ActionListener{
+		
+		public void actionPerformed(ActionEvent e){
+			if(theModel.getPlayers()[1].getShipsPlaced()==10 && theModel.getPlayers()[0].getShipsPlaced()==10)
+			{
+				theModel.getStartingClient().shutdown();
+				theModel.getStartingClient().stop();
+				theModel.setCheckTurn(true, false);
+				theModel.createMainClient();
+				theModel.getPlayers()[0].setHits();
+				theModel.getPlayers()[1].setHits();
+				theView.setGameBoardPlayer1Panel();
+				theView.addBoardButtonPlayer1Listener(new BoardButtonPlayer1Listener());
+				theView.setPlayer2ShipsPanel();
+				for(int y=0;y<10;y++)
+					for(int x=0;x<10;x++){
+						if(theModel.getPlayers()[1].getHits(x, y))
+							theView.getGridPlayer2Ships(x, y).setBackground(Color.ORANGE);
+						else
+							theView.getGridPlayer2Ships(x, y).setBackground(Color.GRAY);
+					}
+				theView.frame.remove(theView.setShipsPanelPlayer2);
+				theView.frame.remove(theView.getGridPlayer2Panel());
+				theView.frame.add(theView.getGameBoardPlayer1Panel());
+				theView.frame.add(theView.getPlayer2ShipsPanel());
+				theView.frame.setTitle("Battleship Client");
+				theMonitor = new UpdateMonitor(true);
 				theView.frame.revalidate();
 				theView.frame.repaint();
 
-
+			}
+			else if(theModel.getPlayers()[0].getShipsPlaced()!=10 && theModel.getPlayers()[1].getShipsPlaced()==10){
+				
+				JFrame frame = new JFrame();
+				JOptionPane.showMessageDialog(frame, "Wait for your opponent!");
+				
 			}
 			else{
 				
